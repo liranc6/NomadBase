@@ -5,13 +5,14 @@ import json
 import os
 from dataclasses import dataclass
 from typing import Any
+from contextlib import suppress
 
 import folium
 import gspread
 import pandas as pd
 import streamlit as st
-from google.oauth2.service_account import Credentials
 from geopy.geocoders import Nominatim
+from google.oauth2.service_account import Credentials
 from streamlit_folium import st_folium
 
 
@@ -25,10 +26,14 @@ HEADER_COLUMNS = [
     "Laptop Friendly",
     "Outlets",
     "Last Updated",
+    "Address",
+    "Latitude",
+    "Longitude",
 ]
 
 SHEET_DEFAULT_NAME = "NomadBase_Data"
 WORKSHEET_DEFAULT_NAME = "Locations"
+MAP_DEFAULT_CENTER = (37.7749, -122.4194)
 
 
 @dataclass(frozen=True)
@@ -173,29 +178,95 @@ def _coerce_bool(value: Any) -> bool:
     return str(value).strip().lower() in {"true", "yes", "y", "1"}
 
 
-@st.cache_data(ttl=300)
-def geocode_venue(venue_name: str) -> tuple[float, float] | None:
-    """Convert venue name to (lat, lon) using Nominatim (free geocoder)."""
-    if not venue_name or not venue_name.strip():
+def _clean_text(value: Any) -> str:
+    if value is None:
+        return ""
+    text = str(value).strip()
+    return text if text.lower() != "nan" else ""
+
+
+@st.cache_data(ttl=86400)
+def geocode_location(query: str) -> tuple[float, float] | None:
+    if not query or not query.strip():
         return None
-    try:
+    with suppress(Exception):
         geolocator = Nominatim(user_agent="nomadbase_app")
-        location = geolocator.geocode(venue_name, timeout=5)
-        if location:
+        if location := geolocator.geocode(query, timeout=5):
             return (location.latitude, location.longitude)
-    except Exception:
-        pass
     return None
 
 
 def get_marker_color(wifi_rating: int) -> str:
-    """Return folium marker color based on WiFi rating."""
     if wifi_rating >= 4:
         return "green"
-    elif wifi_rating == 3:
-        return "orange"
-    else:
-        return "red"
+    return "orange" if wifi_rating == 3 else "red"
+
+
+def resolve_coordinates(name: str, address: str) -> tuple[float | None, float | None]:
+    query_parts = [part for part in [address, name] if part]
+    query = ", ".join(query_parts)
+    geocoded = geocode_location(query)
+    if geocoded is None and name:
+        geocoded = geocode_location(name)
+    return geocoded if geocoded is not None else (None, None)
+
+
+def get_map_center(map_df: pd.DataFrame) -> tuple[float, float]:
+    return float(map_df["Latitude"].mean()), float(map_df["Longitude"].mean())
+
+
+def build_folium_map(map_df: pd.DataFrame) -> folium.Map:
+    center_lat, center_lon = get_map_center(map_df)
+    map_object = folium.Map(location=[center_lat, center_lon], zoom_start=13, tiles="OpenStreetMap")
+    marker_points: list[tuple[float, float]] = []
+
+    for _, row in map_df.iterrows():
+        latitude = float(row["Latitude"])
+        longitude = float(row["Longitude"])
+        marker_points.append((latitude, longitude))
+        popup_text = f"""
+        <b>{row['Name']}</b><br>
+        {row.get('Address', '')}<br>
+        WiFi: {render_rating_mugs(row['WiFi Rating'])} | Coffee: {render_rating_mugs(row['Coffee Rating'])} | Quiet: {render_rating_mugs(row['Noise Rating'])}<br>
+        Laptop-friendly: {yes_no(row['Laptop Friendly'])}<br>
+        Outlets: {yes_no(row['Outlets'])}<br>
+        <small>{row['Last Updated']}</small>
+        """
+        folium.Marker(
+            location=[latitude, longitude],
+            popup=folium.Popup(popup_text, max_width=300),
+            tooltip=row["Name"],
+            icon=folium.Icon(color=get_marker_color(int(row["WiFi Rating"])), icon="coffee", prefix="fa"),
+        ).add_to(map_object)
+
+    if len(marker_points) > 1:
+        map_object.fit_bounds(marker_points)
+
+    return map_object
+
+
+def build_location_payload(
+    name: str,
+    address: str,
+    wifi_rating: int,
+    noise_rating: int,
+    coffee_rating: int,
+    laptop_friendly: bool,
+    outlets: bool,
+) -> dict[str, Any]:
+    latitude, longitude = resolve_coordinates(name, address)
+    return {
+        "Name": name,
+        "Address": address,
+        "WiFi Rating": wifi_rating,
+        "Noise Rating": noise_rating,
+        "Coffee Rating": coffee_rating,
+        "Laptop Friendly": laptop_friendly,
+        "Outlets": outlets,
+        "Latitude": latitude,
+        "Longitude": longitude,
+        "Last Updated": dt.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC"),
+    }
 
 
 def render_coffee_rating(label: str, default_value: int = 3, help_text: str = "", key: str = None) -> int:
@@ -209,7 +280,7 @@ def render_coffee_rating(label: str, default_value: int = 3, help_text: str = ""
         5: "☕☕☕☕☕",
     }
     
-    selected = st.select_slider(
+    return st.select_slider(
         label,
         options=list(options.keys()),
         value=default_value,
@@ -217,8 +288,6 @@ def render_coffee_rating(label: str, default_value: int = 3, help_text: str = ""
         key=key,
         help=help_text,
     )
-    
-    return selected
 
 
 def load_locations(worksheet: gspread.Worksheet) -> pd.DataFrame:
@@ -227,13 +296,49 @@ def load_locations(worksheet: gspread.Worksheet) -> pd.DataFrame:
         return pd.DataFrame(columns=HEADER_COLUMNS + ["Nomad Score"])
 
     df = pd.DataFrame(records)
+    for column in ["Address", "Last Updated"]:
+        if column not in df.columns:
+            df[column] = ""
+
     for column in ["WiFi Rating", "Noise Rating", "Coffee Rating"]:
         df[column] = pd.to_numeric(df[column], errors="coerce").fillna(0).astype(int)
 
     for column in ["Laptop Friendly", "Outlets"]:
         df[column] = df[column].apply(_coerce_bool)
 
+    for column in ["Latitude", "Longitude"]:
+        if column in df.columns:
+            df[column] = pd.to_numeric(df[column], errors="coerce")
+        else:
+            df[column] = pd.Series(dtype=float)
+
+    updates: list[tuple[int, int, float]] = []
+    for row_index, row in df.iterrows():
+        latitude = row.get("Latitude")
+        longitude = row.get("Longitude")
+        if pd.notna(latitude) and pd.notna(longitude):
+            continue
+
+        name = _clean_text(row.get("Name"))
+        address = _clean_text(row.get("Address"))
+        resolved_latitude, resolved_longitude = resolve_coordinates(name, address)
+        if resolved_latitude is None or resolved_longitude is None:
+            continue
+
+        df.at[row_index, "Latitude"] = resolved_latitude
+        df.at[row_index, "Longitude"] = resolved_longitude
+        updates.extend(
+            [
+                (row_index + 2, 9, resolved_latitude),
+                (row_index + 2, 10, resolved_longitude),
+            ]
+        )
+
+    for sheet_row, column_index, value in updates:
+        worksheet.update_cell(sheet_row, column_index, value)
+
     df["Name"] = df["Name"].fillna("").astype(str).str.strip()
+    df["Address"] = df["Address"].fillna("").astype(str).str.strip()
     df["Last Updated"] = df.get("Last Updated", pd.Series(dtype=str)).fillna("").astype(str)
     df["Nomad Score"] = df[["WiFi Rating", "Noise Rating", "Coffee Rating"]].mean(axis=1).round(1)
     return df
@@ -248,6 +353,9 @@ def append_location(worksheet: gspread.Worksheet, payload: dict[str, Any]) -> No
         payload["Laptop Friendly"],
         payload["Outlets"],
         payload["Last Updated"],
+        payload["Address"],
+        payload["Latitude"],
+        payload["Longitude"],
     ]
     worksheet.append_row(row, value_input_option="USER_ENTERED")
 
@@ -256,6 +364,7 @@ def create_csv_template() -> bytes:
     """Generate a CSV template for batch uploads."""
     template_df = pd.DataFrame({
         "Name": ["Blue Bottle Coffee", "WeWork San Francisco"],
+        "Address": ["1600 Powell St, San Francisco, CA", "535 Mission St, San Francisco, CA"],
         "WiFi Rating": [5, 4],
         "Noise Rating": [4, 3],
         "Coffee Rating": [5, 3],
@@ -277,9 +386,11 @@ def process_csv_upload(csv_file, worksheet: gspread.Worksheet) -> tuple[int, lis
         return 0, [f"Failed to parse CSV: {str(e)}"]
     
     required_cols = {"Name", "WiFi Rating", "Noise Rating", "Coffee Rating", "Laptop Friendly", "Outlets"}
-    missing_cols = required_cols - set(df.columns)
-    if missing_cols:
+    if missing_cols := required_cols - set(df.columns):
         return 0, [f"Missing required columns: {', '.join(missing_cols)}"]
+
+    if "Address" not in df.columns:
+        df["Address"] = ""
     
     errors = []
     rows_to_insert = []
@@ -308,12 +419,16 @@ def process_csv_upload(csv_file, worksheet: gspread.Worksheet) -> tuple[int, lis
             
             # Convert boolean fields
             try:
-                laptop_friendly = str(row["Laptop Friendly"]).lower() in ("true", "yes", "1", "t", "y")
-                outlets = str(row["Outlets"]).lower() in ("true", "yes", "1", "t", "y")
+                truthy_values = {"true", "yes", "1", "t", "y"}
+                laptop_friendly = str(row["Laptop Friendly"]).lower() in truthy_values
+                outlets = str(row["Outlets"]).lower() in truthy_values
             except Exception as e:
                 errors.append(f"Row {line_num} ({name}): Invalid boolean value - {str(e)}")
                 continue
             
+            address = _clean_text(row.get("Address"))
+            latitude, longitude = resolve_coordinates(name, address)
+
             # Build row for batch insert
             row_data = [
                 name,
@@ -323,6 +438,9 @@ def process_csv_upload(csv_file, worksheet: gspread.Worksheet) -> tuple[int, lis
                 laptop_friendly,
                 outlets,
                 dt.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC"),
+                address,
+                latitude,
+                longitude,
             ]
             rows_to_insert.append(row_data)
         
@@ -369,10 +487,7 @@ def yes_no(value: bool) -> str:
 
 def render_rating_mugs(rating: float) -> str:
     """Convert numeric rating (1-5) to coffee mug emoji display."""
-    if rating == 0:
-        return "—"
-    mugs = int(round(rating))
-    return "☕" * mugs
+    return "—" if rating == 0 else "☕" * int(round(rating))
 
 
 def render_metrics(df: pd.DataFrame) -> None:
@@ -459,11 +574,11 @@ def render_setup_panel(config: AppConfig, worksheet_status: str) -> None:
 
 
 def render_explore_with_map(df: pd.DataFrame) -> None:
-    """Render Explore tab with interactive map and filters."""
+    """Render Explore tab with a real in-app folium map and filters."""
     st.subheader("🗺️ Find work-friendly spots")
 
     if df.empty:
-        st.info("No spots logged yet. Use the **Log** tab to add your first favorite café or coworking space!")
+        st.info("No spots logged yet. Use the **Log** tab to add your first favorite café or coworking space.")
         return
 
     # Filters
@@ -500,51 +615,19 @@ def render_explore_with_map(df: pd.DataFrame) -> None:
     filtered = apply_filters(df, search_text, min_wifi, min_noise, min_coffee, laptop_only, outlets_only)
 
     if filtered.empty:
-        st.info(f"No spots match your filters. Try adjusting the criteria.")
+        st.info("No spots match your filters. Try adjusting the criteria.")
         return
 
-    # Create and render map
-    st.markdown(f"### Map ({len(filtered)} spots)")
-    
-    # Calculate map center (using average of all spots, or default to SF)
-    if len(filtered) > 0:
-        # For now, use a default center since we don't have geocoded lat/lon yet
-        center_lat = 37.7749
-        center_lon = -122.4194
+    map_df = filtered.dropna(subset=["Latitude", "Longitude"]).copy()
+    if map_df.empty:
+        st.warning("No map coordinates yet. Add an address for new spots, or wait for geocoding to complete.")
     else:
-        center_lat, center_lon = 37.7749, -122.4194
-
-    m = folium.Map(
-        location=[center_lat, center_lon],
-        zoom_start=13,
-        tiles="OpenStreetMap"
-    )
-
-    # Add markers for filtered spots
-    for idx, row in filtered.iterrows():
-        color = get_marker_color(row["WiFi Rating"])
-        wifi_mugs = render_rating_mugs(row["WiFi Rating"])
-        coffee_mugs = render_rating_mugs(row["Coffee Rating"])
-        quiet_mugs = render_rating_mugs(row["Noise Rating"])
-        popup_text = f"""
-        <b>{row['Name']}</b><br>
-        WiFi: {wifi_mugs} | Coffee: {coffee_mugs} | Quiet: {quiet_mugs}<br>
-        Laptop-friendly: {yes_no(row['Laptop Friendly'])}<br>
-        Outlets: {yes_no(row['Outlets'])}<br>
-        <small>{row['Last Updated']}</small>
-        """
-        folium.Marker(
-            location=[center_lat + (idx * 0.001), center_lon + (idx * 0.001)],  # Temp: offset markers for now
-            popup=folium.Popup(popup_text, max_width=250),
-            icon=folium.Icon(color=color, icon="coffee", prefix="fa"),
-            tooltip=row["Name"]
-        ).add_to(m)
-
-    st_folium(m, width=1200, height=500)
+        st_folium(build_folium_map(map_df), width=1200, height=560)
 
     # Display table view
     st.markdown(f"### Details ({len(filtered)} results)")
     display_df = filtered.copy()
+    display_df["Address"] = display_df["Address"].fillna("").astype(str)
     display_df["Laptop Friendly"] = display_df["Laptop Friendly"].apply(yes_no)
     display_df["Outlets"] = display_df["Outlets"].apply(yes_no)
     display_df["WiFi Rating"] = display_df["WiFi Rating"].apply(render_rating_mugs)
@@ -553,6 +636,7 @@ def render_explore_with_map(df: pd.DataFrame) -> None:
     display_df = display_df[
         [
             "Name",
+            "Address",
             "Nomad Score",
             "WiFi Rating",
             "Noise Rating",
@@ -618,15 +702,15 @@ def render_log_tab(worksheet: gspread.Worksheet, refresh_key: str) -> None:
             st.error("Venue name is required.")
             return
 
-        payload = {
-            "Name": name.strip(),
-            "WiFi Rating": int(wifi_rating),
-            "Noise Rating": int(noise_rating),
-            "Coffee Rating": int(coffee_rating),
-            "Laptop Friendly": bool(laptop_friendly),
-            "Outlets": bool(outlets),
-            "Last Updated": dt.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC"),
-        }
+        payload = build_location_payload(
+            name=name.strip(),
+            address=address.strip(),
+            wifi_rating=int(wifi_rating),
+            noise_rating=int(noise_rating),
+            coffee_rating=int(coffee_rating),
+            laptop_friendly=bool(laptop_friendly),
+            outlets=bool(outlets),
+        )
         
         append_location(worksheet, payload)
         st.session_state[refresh_key] = st.session_state.get(refresh_key, 0) + 1

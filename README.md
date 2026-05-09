@@ -6,6 +6,7 @@ NomadBase is a Streamlit app for remote workers to log and explore cafés and co
 - Log venues with Wi-Fi, noise, and coffee ratings.
 - Track laptop-friendliness and outlet availability.
 - Search and filter spots by rating and feature flags.
+- Render a real in-app map from Sheet-backed coordinates.
 - Store data in Google Sheets using free-tier tooling.
 
 ## Setup
@@ -14,8 +15,11 @@ NomadBase is a Streamlit app for remote workers to log and explore cafés and co
 3. Set `NOMADBASE_SPREADSHEET_ID` or `NOMADBASE_SPREADSHEET_NAME`.
 4. Install dependencies with `pip install -r requirements.txt`.
 5. Run `streamlit run app.py`.
+6. Add an address when logging a spot so it can be geocoded onto the map.
 
 ## Streamlit secrets example
+The app reads these TOML values from Streamlit secrets or `.streamlit/secrets.toml`.
+
 ```toml
 GOOGLE_SHEET_ID = "your-google-sheet-id"
 GOOGLE_SHEET_NAME = "NomadBase_Data"

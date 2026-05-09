@@ -40,6 +40,8 @@ service_account.json
 *.swo
 *~
 .DS_Store
+.env
+.env.*
 
 secret_keys/
 
