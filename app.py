@@ -523,12 +523,42 @@ def render_rating_mugs(rating: float) -> str:
     return "—" if rating == 0 else "☕" * int(round(rating))
 
 
-def render_metrics(df: pd.DataFrame) -> None:
+def render_app_header(admin_mode: bool, worksheet_status: str) -> None:
+    status_label = "Admin view" if admin_mode else "Public view"
+    setup_label = "Setup visible" if admin_mode else "Setup hidden"
+    sheet_label = "Sheets connected" if "connected" in worksheet_status else "Sheets blocked"
+
+    st.markdown(
+        f"""
+        <div style="
+            padding: 1.25rem 1.5rem;
+            border-radius: 1rem;
+            border: 1px solid rgba(49, 51, 63, 0.12);
+            background: linear-gradient(135deg, rgba(255, 207, 64, 0.18), rgba(255, 255, 255, 0.96));
+            margin-bottom: 1rem;
+        ">
+            <div style="font-size: 2.15rem; font-weight: 800; line-height: 1.1;">☕ NomadBase</div>
+            <div style="font-size: 1rem; margin-top: 0.35rem; color: rgba(49, 51, 63, 0.82);">
+                Find and log your favorite work-friendly cafés and coworking spaces.
+            </div>
+            <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.9rem;">
+                <span style="padding: 0.35rem 0.7rem; border-radius: 999px; background: rgba(49, 51, 63, 0.08); font-size: 0.85rem;">{status_label}</span>
+                <span style="padding: 0.35rem 0.7rem; border-radius: 999px; background: rgba(49, 51, 63, 0.08); font-size: 0.85rem;">{setup_label}</span>
+                <span style="padding: 0.35rem 0.7rem; border-radius: 999px; background: rgba(49, 51, 63, 0.08); font-size: 0.85rem;">{sheet_label}</span>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_metrics(df: pd.DataFrame, worksheet_status: str) -> None:
     total_locations = len(df)
     avg_wifi = round(df["WiFi Rating"].mean(), 1) if total_locations else 0.0
     avg_noise = round(df["Noise Rating"].mean(), 1) if total_locations else 0.0
     avg_coffee = round(df["Coffee Rating"].mean(), 1) if total_locations else 0.0
     laptop_share = round(df["Laptop Friendly"].mean() * 100, 0) if total_locations else 0.0
+    map_ready = int(df[["Latitude", "Longitude"]].dropna().shape[0]) if {"Latitude", "Longitude"}.issubset(df.columns) else 0
 
     metric_cols = st.columns(4)
     metric_cols[0].metric("Spots logged", total_locations)
@@ -538,7 +568,30 @@ def render_metrics(df: pd.DataFrame) -> None:
 
     sub_cols = st.columns(2)
     sub_cols[0].caption(f"Coffee quality: {render_rating_mugs(avg_coffee)}")
-    sub_cols[1].caption("More mugs = better! ☕☕☕☕☕")
+    sub_cols[1].caption(f"{map_ready} map-ready spots · {'connected' if 'connected' in worksheet_status else 'needs setup'}")
+
+
+def build_display_dataframe(filtered: pd.DataFrame) -> pd.DataFrame:
+    display_df = filtered.copy()
+    display_df["Address"] = display_df["Address"].fillna("").astype(str)
+    display_df["Laptop Friendly"] = display_df["Laptop Friendly"].apply(yes_no)
+    display_df["Outlets"] = display_df["Outlets"].apply(yes_no)
+    display_df["WiFi Rating"] = display_df["WiFi Rating"].apply(render_rating_mugs)
+    display_df["Noise Rating"] = display_df["Noise Rating"].apply(render_rating_mugs)
+    display_df["Coffee Rating"] = display_df["Coffee Rating"].apply(render_rating_mugs)
+    return display_df[
+        [
+            "Name",
+            "Address",
+            "Nomad Score",
+            "WiFi Rating",
+            "Noise Rating",
+            "Coffee Rating",
+            "Laptop Friendly",
+            "Outlets",
+            "Last Updated",
+        ]
+    ]
 
 
 def render_setup_panel(config: AppConfig, worksheet_status: str) -> None:
@@ -615,33 +668,28 @@ def render_explore_with_map(df: pd.DataFrame) -> None:
         return
 
     # Filters
-    st.markdown("### Filter spots (☕ = minimum quality)")
-    filter_cols = st.columns([2, 1, 1, 1])
-    with filter_cols[0]:
+    with st.sidebar:
+        st.markdown("### Filter spots")
+        st.caption("Search fast, then narrow by the qualities that matter most.")
         search_text = st.text_input("Search by name", placeholder="e.g., Starbucks, WeWork, Local Café")
-    with filter_cols[1]:
         min_wifi = render_coffee_rating(
             "Min WiFi",
             default_value=1,
             key="explore_wifi"
         )
-    with filter_cols[2]:
         min_noise = render_coffee_rating(
             "Min Quiet",
             default_value=1,
             key="explore_noise"
         )
-    with filter_cols[3]:
         min_coffee = render_coffee_rating(
             "Min Coffee",
             default_value=1,
             key="explore_coffee"
         )
 
-    feature_cols = st.columns(2)
-    with feature_cols[0]:
+        st.markdown("### Features")
         laptop_only = st.checkbox("Laptop-friendly only")
-    with feature_cols[1]:
         outlets_only = st.checkbox("Outlets required")
 
     # Apply filters
@@ -652,35 +700,18 @@ def render_explore_with_map(df: pd.DataFrame) -> None:
         return
 
     map_df = filtered.dropna(subset=["Latitude", "Longitude"]).copy()
-    if map_df.empty:
-        st.warning("No map coordinates yet. Add an address for new spots, or wait for geocoding to complete.")
-    else:
-        st_folium(build_folium_map(map_df), width=1200, height=560)
+    st.caption(f"{len(filtered)} matches · {len(map_df)} with coordinates")
 
-    # Display table view
-    st.markdown(f"### Details ({len(filtered)} results)")
-    display_df = filtered.copy()
-    display_df["Address"] = display_df["Address"].fillna("").astype(str)
-    display_df["Laptop Friendly"] = display_df["Laptop Friendly"].apply(yes_no)
-    display_df["Outlets"] = display_df["Outlets"].apply(yes_no)
-    display_df["WiFi Rating"] = display_df["WiFi Rating"].apply(render_rating_mugs)
-    display_df["Noise Rating"] = display_df["Noise Rating"].apply(render_rating_mugs)
-    display_df["Coffee Rating"] = display_df["Coffee Rating"].apply(render_rating_mugs)
-    display_df = display_df[
-        [
-            "Name",
-            "Address",
-            "Nomad Score",
-            "WiFi Rating",
-            "Noise Rating",
-            "Coffee Rating",
-            "Laptop Friendly",
-            "Outlets",
-            "Last Updated",
-        ]
-    ]
+    with st.container():
+        st.markdown("### Map")
+        if map_df.empty:
+            st.warning("No map coordinates yet. Add an address for new spots, or wait for geocoding to complete.")
+        else:
+            st_folium(build_folium_map(map_df), width=1200, height=560)
 
-    st.dataframe(display_df, use_container_width=True, hide_index=True)
+    with st.container():
+        st.markdown(f"### Details ({len(filtered)} results)")
+        st.dataframe(build_display_dataframe(filtered), use_container_width=True, hide_index=True)
 
 
 def render_log_tab(worksheet: gspread.Worksheet, refresh_key: str) -> None:
@@ -789,8 +820,7 @@ def is_admin_mode() -> bool:
 
 def app() -> None:
     config = load_config()
-    st.title("☕ NomadBase")
-    st.markdown("**Find and log your favorite work-friendly cafés and coworking spaces.**")
+    admin_mode = is_admin_mode()
 
     refresh_key = "nomadbase_refresh_counter"
     st.session_state.setdefault(refresh_key, 0)
@@ -809,10 +839,10 @@ def app() -> None:
             "Please contact the app administrator to set up credentials."
         )
 
-    render_metrics(df)
+    render_app_header(admin_mode, worksheet_status)
+    render_metrics(df, worksheet_status)
 
     # Determine which tabs to show
-    admin_mode = is_admin_mode()
     worksheet_error = "blocked" in worksheet_status
 
     if admin_mode or worksheet_error:
