@@ -284,11 +284,11 @@ def process_csv_upload(csv_file, worksheet: gspread.Worksheet) -> tuple[int, lis
     errors = []
     rows_to_insert = []
     
-    for idx, row in df.iterrows():
+    for line_num, (idx, row) in enumerate(df.iterrows(), start=2):
         try:
             name = str(row["Name"]).strip()
             if not name:
-                errors.append(f"Row {idx + 2}: Venue name cannot be empty")
+                errors.append(f"Row {line_num}: Venue name cannot be empty")
                 continue
             
             # Validate ratings are 1-5
@@ -303,7 +303,7 @@ def process_csv_upload(csv_file, worksheet: gspread.Worksheet) -> tuple[int, lis
                     if not 1 <= rating_val <= 5:
                         raise ValueError(f"{rating_name} must be 1-5")
             except (ValueError, TypeError) as e:
-                errors.append(f"Row {idx + 2} ({name}): {str(e)}")
+                errors.append(f"Row {line_num} ({name}): {str(e)}")
                 continue
             
             # Convert boolean fields
@@ -311,7 +311,7 @@ def process_csv_upload(csv_file, worksheet: gspread.Worksheet) -> tuple[int, lis
                 laptop_friendly = str(row["Laptop Friendly"]).lower() in ("true", "yes", "1", "t", "y")
                 outlets = str(row["Outlets"]).lower() in ("true", "yes", "1", "t", "y")
             except Exception as e:
-                errors.append(f"Row {idx + 2} ({name}): Invalid boolean value - {str(e)}")
+                errors.append(f"Row {line_num} ({name}): Invalid boolean value - {str(e)}")
                 continue
             
             # Build row for batch insert
@@ -327,7 +327,7 @@ def process_csv_upload(csv_file, worksheet: gspread.Worksheet) -> tuple[int, lis
             rows_to_insert.append(row_data)
         
         except Exception as e:
-            errors.append(f"Row {idx + 2}: {str(e)}")
+            errors.append(f"Row {line_num}: {str(e)}")
     
     # Batch insert all valid rows in a single API call
     if rows_to_insert:
