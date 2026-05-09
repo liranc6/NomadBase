@@ -1,16 +1,16 @@
 Name,WiFi Rating,Noise Rating,Coffee Rating,Laptop Friendly,Outlets,Address
-Café Xoho,5,4,5,true,true,Tel Aviv, Israel
-The Barista Tel Aviv,4,3,4,true,true,Tel Aviv, Israel
-Ramat Gan Library Café,5,5,3,true,true,Ramat Gan, Israel
-WeWork Rabin,5,4,3,true,true,Tel Aviv (Rabin Square area), Israel
-Arcaffe Dizengoff,4,3,4,true,true,Tel Aviv (Dizengoff St), Israel
-Ministry of Coffee,3,2,5,true,false,Tel Aviv, Israel
-Breeze Café Hilton,4,4,3,true,true,Tel Aviv (Hilton Beach area), Israel
-PoleStart Coworking,5,5,2,true,true,Tel Aviv, Israel
-Café Noga,4,3,4,false,true,Tel Aviv (Noga/Jaffa area), Israel
-The Espresso Bar,4,2,5,true,true,Tel Aviv, Israel
-Hotam HaCafé,5,4,4,true,true,Ramat HaSharon, Israel
-Cafe Pitzi,4,3,4,true,true,Ramat HaSharon, Israel
-Traquelinari (Plant Nursery Café),4,5,4,true,true,Ramat HaSharon, Israel
-Raphael Bar Breads,4,4,4,true,true,Ramat HaSharon, Israel
-Baker,4,4,4,true,true,Ramat HaSharon, Israel
+Café Xoho,5,4,5,true,true,"73 Ben Yehuda St, Tel Aviv-Yafo, 6343501, Israel"
+The Barista Tel Aviv,4,3,4,true,true,"114 Ben Yehuda St, Tel Aviv-Yafo, Israel"
+Ramat Gan Library Café,5,5,3,true,true,"1 Hazeitim St, Ramat Gan, Israel"
+WeWork Rabin,5,4,3,true,true,"144 Menachem Begin Rd, Tel Aviv-Yafo, Israel"
+Arcaffe Dizengoff,4,3,4,true,true,"72 Ibn Gabirol St, Tel Aviv-Yafo, 6495207, Israel"
+Ministry of Coffee,3,2,5,true,false,"3 Mikve Israel St, Tel Aviv-Yafo, 5891000, Israel"
+Breeze Café Hilton,4,4,3,true,true,"205 HaYarkon St, Tel Aviv-Yafo, 6340506, Israel"
+PoleStart Coworking,5,5,2,true,true,"39 HaMasger St, Tel Aviv-Yafo, 6721409, Israel"
+Café Noga,4,3,4,false,true,"44 Ibn Gabirol St, Tel Aviv-Yafo, Israel"
+The Espresso Bar,4,2,5,true,true,"13 Yad Harutsim St, Tel Aviv-Yafo, Israel"
+Hotam HaCafé,5,4,4,true,true,"81 Sokolov St, Ramat HaSharon, Israel"
+Cafe Pitzi,4,3,4,true,true,"1 David Ben Gurion Rd, Bnei Brak, Israel"
+Traquelinari (Plant Nursery Café),4,5,4,true,true,"HaShetilim St 55, Ramat HaSharon, Israel"
+Raphael Bar Breads,4,4,4,true,true,"40 Ussishkin St, Ramat HaSharon, Israel"
+Baker,4,4,4,true,true,"5 Sokolov St, Ramat HaSharon, Israel"
