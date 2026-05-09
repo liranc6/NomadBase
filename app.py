@@ -297,8 +297,8 @@ def render_metrics(df: pd.DataFrame) -> None:
 
     metric_cols = st.columns(4)
     metric_cols[0].metric("Spots logged", total_locations)
-    metric_cols[1].metric("Avg WiFi", render_rating_mugs(avg_wifi), help_text="Coffee mug rating")
-    metric_cols[2].metric("Avg quietness", render_rating_mugs(avg_noise), help_text="Coffee mug rating")
+    metric_cols[1].metric("Avg WiFi", render_rating_mugs(avg_wifi), help="Coffee mug rating")
+    metric_cols[2].metric("Avg quietness", render_rating_mugs(avg_noise), help="Coffee mug rating")
     metric_cols[3].metric("Laptop-friendly", f"{int(laptop_share)}%")
 
     sub_cols = st.columns(2)
