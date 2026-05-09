@@ -252,6 +252,87 @@ def append_location(worksheet: gspread.Worksheet, payload: dict[str, Any]) -> No
     worksheet.append_row(row, value_input_option="USER_ENTERED")
 
 
+def create_csv_template() -> bytes:
+    """Generate a CSV template for batch uploads."""
+    template_df = pd.DataFrame({
+        "Name": ["Blue Bottle Coffee", "WeWork San Francisco"],
+        "WiFi Rating": [5, 4],
+        "Noise Rating": [4, 3],
+        "Coffee Rating": [5, 3],
+        "Laptop Friendly": [True, True],
+        "Outlets": [True, True],
+    })
+    return template_df.to_csv(index=False).encode()
+
+
+def process_csv_upload(csv_file, worksheet: gspread.Worksheet) -> tuple[int, list[str]]:
+    """Parse and validate CSV file, then batch insert into Google Sheet.
+    
+    Returns:
+        tuple: (successful_inserts, list_of_error_messages)
+    """
+    try:
+        df = pd.read_csv(csv_file)
+    except Exception as e:
+        return 0, [f"Failed to parse CSV: {str(e)}"]
+    
+    required_cols = {"Name", "WiFi Rating", "Noise Rating", "Coffee Rating", "Laptop Friendly", "Outlets"}
+    missing_cols = required_cols - set(df.columns)
+    if missing_cols:
+        return 0, [f"Missing required columns: {', '.join(missing_cols)}"]
+    
+    errors = []
+    successful = 0
+    
+    for idx, row in df.iterrows():
+        try:
+            name = str(row["Name"]).strip()
+            if not name:
+                errors.append(f"Row {idx + 2}: Venue name cannot be empty")
+                continue
+            
+            # Validate ratings are 1-5
+            try:
+                wifi_rating = int(row["WiFi Rating"])
+                noise_rating = int(row["Noise Rating"])
+                coffee_rating = int(row["Coffee Rating"])
+                
+                for rating_val, rating_name in [(wifi_rating, "WiFi Rating"), 
+                                                  (noise_rating, "Noise Rating"),
+                                                  (coffee_rating, "Coffee Rating")]:
+                    if not 1 <= rating_val <= 5:
+                        raise ValueError(f"{rating_name} must be 1-5")
+            except (ValueError, TypeError) as e:
+                errors.append(f"Row {idx + 2} ({name}): {str(e)}")
+                continue
+            
+            # Convert boolean fields
+            try:
+                laptop_friendly = str(row["Laptop Friendly"]).lower() in ("true", "yes", "1", "t", "y")
+                outlets = str(row["Outlets"]).lower() in ("true", "yes", "1", "t", "y")
+            except Exception as e:
+                errors.append(f"Row {idx + 2} ({name}): Invalid boolean value - {str(e)}")
+                continue
+            
+            payload = {
+                "Name": name,
+                "WiFi Rating": wifi_rating,
+                "Noise Rating": noise_rating,
+                "Coffee Rating": coffee_rating,
+                "Laptop Friendly": laptop_friendly,
+                "Outlets": outlets,
+                "Last Updated": dt.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC"),
+            }
+            
+            append_location(worksheet, payload)
+            successful += 1
+        
+        except Exception as e:
+            errors.append(f"Row {idx + 2}: {str(e)}")
+    
+    return successful, errors
+
+
 def apply_filters(
     df: pd.DataFrame,
     search_text: str,
@@ -545,6 +626,37 @@ def render_log_tab(worksheet: gspread.Worksheet, refresh_key: str) -> None:
         st.session_state[refresh_key] = st.session_state.get(refresh_key, 0) + 1
         st.balloons()
         st.success(f"🎉 Successfully logged **{payload['Name']}**! Thanks for sharing!")
+
+    # CSV Batch Upload Section
+    st.markdown("---")
+    st.subheader("📤 Batch upload spots (CSV)")
+    st.markdown("Upload multiple venues at once using a CSV file. Download the template below to get started.")
+    
+    csv_col1, csv_col2 = st.columns(2)
+    with csv_col1:
+        # Template download button
+        st.download_button(
+            label="📋 Download CSV template",
+            data=create_csv_template(),
+            file_name="nomadbase_template.csv",
+            mime="text/csv",
+        )
+    
+    with csv_col2:
+        # File uploader
+        uploaded_file = st.file_uploader("Choose CSV file", type="csv", key="batch_upload")
+    
+    if uploaded_file is not None:
+        successful, errors = process_csv_upload(uploaded_file, worksheet)
+        
+        if successful > 0:
+            st.session_state[refresh_key] = st.session_state.get(refresh_key, 0) + 1
+            st.success(f"✅ Successfully logged {successful} venue{'s' if successful != 1 else ''}!")
+        
+        if errors:
+            with st.expander(f"⚠️ {len(errors)} error{'s' if len(errors) != 1 else ''} (see details)", expanded=len(errors) <= 3):
+                for error in errors:
+                    st.error(error)
 
 
 def is_admin_mode() -> bool:
