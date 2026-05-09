@@ -3,6 +3,7 @@ from __future__ import annotations
 import datetime as dt
 import json
 import os
+import re
 from dataclasses import dataclass
 from typing import Any
 from contextlib import suppress
@@ -11,6 +12,7 @@ import folium
 import gspread
 import pandas as pd
 import streamlit as st
+from geopy.extra.rate_limiter import RateLimiter
 from geopy.geocoders import Nominatim
 from google.oauth2.service_account import Credentials
 from streamlit_folium import st_folium
@@ -185,13 +187,35 @@ def _clean_text(value: Any) -> str:
     return text if text.lower() != "nan" else ""
 
 
+def _normalize_location_text(value: Any) -> str:
+    text = _clean_text(value)
+    if not text:
+        return ""
+
+    text = re.sub(r"\s*\([^)]*\)", "", text)
+    text = re.sub(r"\s+", " ", text)
+    return text.strip(" ,")
+
+
+@st.cache_resource
+def get_geocoder() -> RateLimiter:
+    geolocator = Nominatim(user_agent="nomadbase_app", timeout=10)
+    return RateLimiter(
+        geolocator.geocode,
+        min_delay_seconds=1.1,
+        max_retries=2,
+        error_wait_seconds=2,
+        swallow_exceptions=True,
+    )
+
+
 @st.cache_data(ttl=86400)
-def geocode_location(query: str) -> tuple[float, float] | None:
+def geocode_location(query: str, country_codes: str | None = None) -> tuple[float, float] | None:
     if not query or not query.strip():
         return None
     with suppress(Exception):
-        geolocator = Nominatim(user_agent="nomadbase_app")
-        if location := geolocator.geocode(query, timeout=5):
+        geolocator = get_geocoder()
+        if location := geolocator(query, exactly_one=True, country_codes=country_codes):
             return (location.latitude, location.longitude)
     return None
 
@@ -203,12 +227,27 @@ def get_marker_color(wifi_rating: int) -> str:
 
 
 def resolve_coordinates(name: str, address: str) -> tuple[float | None, float | None]:
-    query_parts = [part for part in [address, name] if part]
-    query = ", ".join(query_parts)
-    geocoded = geocode_location(query)
-    if geocoded is None and name:
-        geocoded = geocode_location(name)
-    return geocoded if geocoded is not None else (None, None)
+    address = _clean_text(address)
+    name = _clean_text(name)
+
+    candidates: list[str] = []
+    if address:
+        candidates.append(address)
+
+    normalized_address = _normalize_location_text(address)
+    if normalized_address and normalized_address not in candidates:
+        candidates.append(normalized_address)
+
+    if not address and name:
+        candidates.append(name)
+
+    for candidate in candidates:
+        country_codes = "il" if "israel" in candidate.lower() else None
+        geocoded = geocode_location(candidate, country_codes=country_codes)
+        if geocoded is not None:
+            return geocoded
+
+    return (None, None)
 
 
 def get_map_center(map_df: pd.DataFrame) -> tuple[float, float]:
@@ -312,7 +351,7 @@ def load_locations(worksheet: gspread.Worksheet) -> pd.DataFrame:
         else:
             df[column] = pd.Series(dtype=float)
 
-    updates: list[tuple[int, int, float]] = []
+    updates: list[dict[str, Any]] = []
     for row_index, row in df.iterrows():
         latitude = row.get("Latitude")
         longitude = row.get("Longitude")
@@ -327,15 +366,15 @@ def load_locations(worksheet: gspread.Worksheet) -> pd.DataFrame:
 
         df.at[row_index, "Latitude"] = resolved_latitude
         df.at[row_index, "Longitude"] = resolved_longitude
-        updates.extend(
-            [
-                (row_index + 2, 9, resolved_latitude),
-                (row_index + 2, 10, resolved_longitude),
-            ]
+        updates.append(
+            {
+                "range": f"I{row_index + 2}:J{row_index + 2}",
+                "values": [[resolved_latitude, resolved_longitude]],
+            }
         )
 
-    for sheet_row, column_index, value in updates:
-        worksheet.update_cell(sheet_row, column_index, value)
+    if updates:
+        worksheet.batch_update(updates, value_input_option="USER_ENTERED")
 
     df["Name"] = df["Name"].fillna("").astype(str).str.strip()
     df["Address"] = df["Address"].fillna("").astype(str).str.strip()

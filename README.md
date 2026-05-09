@@ -15,7 +15,7 @@ NomadBase is a Streamlit app for remote workers to log and explore cafés and co
 3. Set `NOMADBASE_SPREADSHEET_ID` or `NOMADBASE_SPREADSHEET_NAME`.
 4. Install dependencies with `pip install -r requirements.txt`.
 5. Run `streamlit run app.py`.
-6. Add an address when logging a spot so it can be geocoded onto the map.
+6. Add the cleanest address you have when logging a spot; the app geocodes address-first, stores Latitude/Longitude in Google Sheets, and renders those markers in Explore.
 
 ## Streamlit secrets example
 The app reads these TOML values from Streamlit secrets or `.streamlit/secrets.toml`.
