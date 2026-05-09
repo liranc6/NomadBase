@@ -197,6 +197,18 @@ def _normalize_location_text(value: Any) -> str:
     return text.strip(" ,")
 
 
+def _unique_queries(*queries: str) -> list[str]:
+    seen: set[str] = set()
+    ordered_queries: list[str] = []
+    for query in queries:
+        normalized_query = _clean_text(query)
+        if not normalized_query or normalized_query in seen:
+            continue
+        seen.add(normalized_query)
+        ordered_queries.append(normalized_query)
+    return ordered_queries
+
+
 @st.cache_resource
 def get_geocoder() -> RateLimiter:
     geolocator = Nominatim(user_agent="nomadbase_app", timeout=10)
@@ -230,19 +242,33 @@ def resolve_coordinates(name: str, address: str) -> tuple[float | None, float | 
     address = _clean_text(address)
     name = _clean_text(name)
 
-    candidates: list[str] = []
-    if address:
-        candidates.append(address)
-
     normalized_address = _normalize_location_text(address)
-    if normalized_address and normalized_address not in candidates:
-        candidates.append(normalized_address)
+    combined_name_address = ", ".join(part for part in [name, address] if part)
+    combined_name_normalized_address = ", ".join(part for part in [name, normalized_address] if part)
 
-    if not address and name:
-        candidates.append(name)
+    candidates = _unique_queries(
+        address,
+        normalized_address,
+        combined_name_address,
+        combined_name_normalized_address,
+        name,
+    )
 
     for candidate in candidates:
-        country_codes = "il" if "israel" in candidate.lower() else None
+        country_codes = "il" if any(
+            keyword in candidate.lower()
+            for keyword in [
+                "israel",
+                "tel aviv",
+                "ramat gan",
+                "bnei brak",
+                "ramat hasharon",
+                "herzliya",
+                "givatayim",
+                "bat yam",
+                "rishon lezion",
+            ]
+        ) else None
         geocoded = geocode_location(candidate, country_codes=country_codes)
         if geocoded is not None:
             return geocoded
