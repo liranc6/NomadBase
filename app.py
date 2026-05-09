@@ -211,6 +211,16 @@ def _unique_queries(*queries: str) -> list[str]:
     return ordered_queries
 
 
+def _parse_coordinate(value: Any) -> float | None:
+    text = _clean_text(value)
+    if not text:
+        return None
+
+    with suppress(ValueError, TypeError):
+        return float(text)
+    return None
+
+
 @st.cache_resource
 def get_geocoder() -> RateLimiter:
     geolocator = Nominatim(
@@ -435,6 +445,8 @@ def create_csv_template() -> bytes:
         "Coffee Rating": [5, 3],
         "Laptop Friendly": [True, True],
         "Outlets": [True, True],
+        "Latitude": ["", ""],
+        "Longitude": ["", ""],
     })
     return template_df.to_csv(index=False).encode()
 
@@ -456,6 +468,10 @@ def process_csv_upload(csv_file, worksheet: gspread.Worksheet) -> tuple[int, lis
 
     if "Address" not in df.columns:
         df["Address"] = ""
+    if "Latitude" not in df.columns:
+        df["Latitude"] = ""
+    if "Longitude" not in df.columns:
+        df["Longitude"] = ""
     
     errors = []
     rows_to_insert = []
@@ -492,7 +508,13 @@ def process_csv_upload(csv_file, worksheet: gspread.Worksheet) -> tuple[int, lis
                 continue
             
             address = _clean_text(row.get("Address"))
-            latitude, longitude = resolve_coordinates(name, address)
+            latitude = _parse_coordinate(row.get("Latitude"))
+            longitude = _parse_coordinate(row.get("Longitude"))
+
+            if latitude is None or longitude is None:
+                resolved_latitude, resolved_longitude = resolve_coordinates(name, address)
+                latitude = resolved_latitude if latitude is None else latitude
+                longitude = resolved_longitude if longitude is None else longitude
 
             # Build row for batch insert
             row_data = [
