@@ -529,25 +529,23 @@ def render_app_header(admin_mode: bool, worksheet_status: str) -> None:
     sheet_label = "Sheets connected" if "connected" in worksheet_status else "Sheets blocked"
 
     st.markdown(
-        f"""
-        <div style="
-            padding: 1.25rem 1.5rem;
-            border-radius: 1rem;
-            border: 1px solid rgba(49, 51, 63, 0.12);
-            background: linear-gradient(135deg, rgba(255, 207, 64, 0.18), rgba(255, 255, 255, 0.96));
-            margin-bottom: 1rem;
-        ">
-            <div style="font-size: 2.15rem; font-weight: 800; line-height: 1.1;">☕ NomadBase</div>
-            <div style="font-size: 1rem; margin-top: 0.35rem; color: rgba(49, 51, 63, 0.82);">
-                Find and log your favorite work-friendly cafés and coworking spaces.
-            </div>
-            <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.9rem;">
-                <span style="padding: 0.35rem 0.7rem; border-radius: 999px; background: rgba(49, 51, 63, 0.08); font-size: 0.85rem;">{status_label}</span>
-                <span style="padding: 0.35rem 0.7rem; border-radius: 999px; background: rgba(49, 51, 63, 0.08); font-size: 0.85rem;">{setup_label}</span>
-                <span style="padding: 0.35rem 0.7rem; border-radius: 999px; background: rgba(49, 51, 63, 0.08); font-size: 0.85rem;">{sheet_label}</span>
-            </div>
-        </div>
-        """,
+        f"""<div style="
+    padding: 1.25rem 1.5rem;
+    border-radius: 1rem;
+    border: 1px solid rgba(49, 51, 63, 0.12);
+    background: linear-gradient(135deg, rgba(255, 207, 64, 0.18), rgba(255, 255, 255, 0.96));
+    margin-bottom: 1rem;
+">
+    <div style="font-size: 2.15rem; font-weight: 800; line-height: 1.1;">☕ NomadBase</div>
+    <div style="font-size: 1rem; margin-top: 0.35rem; color: rgba(49, 51, 63, 0.82);">
+        Find and log your favorite work-friendly cafés and coworking spaces.
+    </div>
+    <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.9rem;">
+        <span style="padding: 0.35rem 0.7rem; border-radius: 999px; background: rgba(49, 51, 63, 0.08); font-size: 0.85rem;">{status_label}</span>
+        <span style="padding: 0.35rem 0.7rem; border-radius: 999px; background: rgba(49, 51, 63, 0.08); font-size: 0.85rem;">{setup_label}</span>
+        <span style="padding: 0.35rem 0.7rem; border-radius: 999px; background: rgba(49, 51, 63, 0.08); font-size: 0.85rem;">{sheet_label}</span>
+    </div>
+</div>""",
         unsafe_allow_html=True,
     )
 
