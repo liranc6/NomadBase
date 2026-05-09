@@ -282,7 +282,7 @@ def process_csv_upload(csv_file, worksheet: gspread.Worksheet) -> tuple[int, lis
         return 0, [f"Missing required columns: {', '.join(missing_cols)}"]
     
     errors = []
-    successful = 0
+    rows_to_insert = []
     
     for idx, row in df.iterrows():
         try:
@@ -314,23 +314,29 @@ def process_csv_upload(csv_file, worksheet: gspread.Worksheet) -> tuple[int, lis
                 errors.append(f"Row {idx + 2} ({name}): Invalid boolean value - {str(e)}")
                 continue
             
-            payload = {
-                "Name": name,
-                "WiFi Rating": wifi_rating,
-                "Noise Rating": noise_rating,
-                "Coffee Rating": coffee_rating,
-                "Laptop Friendly": laptop_friendly,
-                "Outlets": outlets,
-                "Last Updated": dt.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC"),
-            }
-            
-            append_location(worksheet, payload)
-            successful += 1
+            # Build row for batch insert
+            row_data = [
+                name,
+                wifi_rating,
+                noise_rating,
+                coffee_rating,
+                laptop_friendly,
+                outlets,
+                dt.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC"),
+            ]
+            rows_to_insert.append(row_data)
         
         except Exception as e:
             errors.append(f"Row {idx + 2}: {str(e)}")
     
-    return successful, errors
+    # Batch insert all valid rows in a single API call
+    if rows_to_insert:
+        try:
+            worksheet.append_rows(rows_to_insert, value_input_option="USER_ENTERED")
+        except Exception as e:
+            return 0, [f"Failed to insert rows: {str(e)}"] + errors
+    
+    return len(rows_to_insert), errors
 
 
 def apply_filters(
