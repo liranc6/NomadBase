@@ -6,3 +6,4 @@ XPM > decision | prefer address-first geocoding, keep sheet-backed map, surface 
 PLAN > scope | `app.py`, traceability docs.
 SPDP > WIP | patch geocoder normalization + write batching.
 XQA > note | validate syntax and map path after patch.
+SPDP > SITREP | root cause: startup path can fail on sheet backfill writes; make write-back best-effort.

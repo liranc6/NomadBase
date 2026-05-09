@@ -351,7 +351,6 @@ def load_locations(worksheet: gspread.Worksheet) -> pd.DataFrame:
         else:
             df[column] = pd.Series(dtype=float)
 
-    updates: list[dict[str, Any]] = []
     for row_index, row in df.iterrows():
         latitude = row.get("Latitude")
         longitude = row.get("Longitude")
@@ -366,15 +365,10 @@ def load_locations(worksheet: gspread.Worksheet) -> pd.DataFrame:
 
         df.at[row_index, "Latitude"] = resolved_latitude
         df.at[row_index, "Longitude"] = resolved_longitude
-        updates.append(
-            {
-                "range": f"I{row_index + 2}:J{row_index + 2}",
-                "values": [[resolved_latitude, resolved_longitude]],
-            }
-        )
 
-    if updates:
-        worksheet.batch_update(updates, value_input_option="USER_ENTERED")
+        with suppress(Exception):
+            worksheet.update_cell(row_index + 2, 9, resolved_latitude)
+            worksheet.update_cell(row_index + 2, 10, resolved_longitude)
 
     df["Name"] = df["Name"].fillna("").astype(str).str.strip()
     df["Address"] = df["Address"].fillna("").astype(str).str.strip()
