@@ -6,10 +6,13 @@ import os
 from dataclasses import dataclass
 from typing import Any
 
+import folium
 import gspread
 import pandas as pd
 import streamlit as st
 from google.oauth2.service_account import Credentials
+from geopy.geocoders import Nominatim
+from streamlit_folium import st_folium
 
 
 st.set_page_config(page_title="NomadBase", page_icon="☕", layout="wide")
@@ -37,23 +40,50 @@ class AppConfig:
 
 def _secret_lookup(*keys: str, default: Any = None) -> Any:
     for key in keys:
-        if key in st.secrets:
-            return st.secrets[key]
+        try:
+            if key in st.secrets:
+                return st.secrets[key]
+        except Exception:
+            return default
     return default
 
 
 def load_config() -> AppConfig:
-    spreadsheet_id = _secret_lookup("NOMADBASE_SPREADSHEET_ID", "spreadsheet_id") or os.getenv("NOMADBASE_SPREADSHEET_ID")
-    spreadsheet_name = _secret_lookup("NOMADBASE_SPREADSHEET_NAME", "spreadsheet_name") or os.getenv("NOMADBASE_SPREADSHEET_NAME") or SHEET_DEFAULT_NAME
-    worksheet_name = _secret_lookup("NOMADBASE_WORKSHEET_NAME", "worksheet_name") or os.getenv("NOMADBASE_WORKSHEET_NAME") or WORKSHEET_DEFAULT_NAME
+    spreadsheet_id = (
+        _secret_lookup(
+            "GOOGLE_SHEET_ID",
+            "NOMADBASE_SPREADSHEET_ID",
+            "spreadsheet_id",
+        )
+        or os.getenv("GOOGLE_SHEET_ID")
+        or os.getenv("NOMADBASE_SPREADSHEET_ID")
+    )
+    spreadsheet_name = (
+        _secret_lookup(
+            "GOOGLE_SHEET_NAME",
+            "NOMADBASE_SPREADSHEET_NAME",
+            "spreadsheet_name",
+        )
+        or os.getenv("GOOGLE_SHEET_NAME")
+        or os.getenv("NOMADBASE_SPREADSHEET_NAME")
+        or SHEET_DEFAULT_NAME
+    )
+    worksheet_name = (
+        _secret_lookup("GOOGLE_WORKSHEET_NAME", "NOMADBASE_WORKSHEET_NAME", "worksheet_name")
+        or os.getenv("GOOGLE_WORKSHEET_NAME")
+        or os.getenv("NOMADBASE_WORKSHEET_NAME")
+        or WORKSHEET_DEFAULT_NAME
+    )
     return AppConfig(spreadsheet_id=spreadsheet_id, spreadsheet_name=spreadsheet_name, worksheet_name=worksheet_name)
 
 
 def _service_account_payload() -> dict[str, Any] | None:
-    if "gcp_service_account" in st.secrets:
-        return dict(st.secrets["gcp_service_account"])
-    if "GCP_SERVICE_ACCOUNT" in st.secrets:
-        return dict(st.secrets["GCP_SERVICE_ACCOUNT"])
+    for key in ("gcp_service_account", "GCP_SERVICE_ACCOUNT"):
+        try:
+            if key in st.secrets:
+                return dict(st.secrets[key])
+        except Exception:
+            return None
 
     env_json = os.getenv("GCP_SERVICE_ACCOUNT_JSON")
     return json.loads(env_json) if env_json else None
@@ -63,15 +93,53 @@ def _service_account_payload() -> dict[str, Any] | None:
 def get_gspread_client() -> gspread.Client:
     scope = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
     payload = _service_account_payload()
+    
     if payload is not None:
-        credentials = Credentials.from_service_account_info(payload, scopes=scope)
-        return gspread.authorize(credentials)
+        try:
+            credentials = Credentials.from_service_account_info(payload, scopes=scope)
+            return gspread.authorize(credentials)
+        except ValueError as e:
+            raise RuntimeError(
+                f"Invalid service account key format. "
+                f"Ensure the private_key field is valid JSON. "
+                f"Error: {str(e)}"
+            ) from e
+        except Exception as e:
+            raise RuntimeError(
+                f"Failed to authorize with service account credentials. "
+                f"Check that the service account email is shared with the target Google Sheet (Editor access). "
+                f"Error: {str(e)}"
+            ) from e
 
     if os.path.exists("service_account.json"):
-        credentials = Credentials.from_service_account_file("service_account.json", scopes=scope)
-        return gspread.authorize(credentials)
+        try:
+            credentials = Credentials.from_service_account_file("service_account.json", scopes=scope)
+            return gspread.authorize(credentials)
+        except ValueError as e:
+            raise RuntimeError(
+                f"Invalid service_account.json format. "
+                f"Ensure it is a valid JSON file downloaded directly from Google Cloud Console. "
+                f"Error: {str(e)}"
+            ) from e
+        except Exception as e:
+            raise RuntimeError(
+                f"Failed to authorize with service_account.json. "
+                f"Error: {str(e)}"
+            ) from e
 
-    raise RuntimeError("Google credentials missing. Add st.secrets.gcp_service_account or service_account.json.")
+    raise RuntimeError(
+        "Google credentials not found. "
+        "\n\n"
+        "**For Streamlit Cloud:**\n"
+        "1. Go to your app settings on app.streamlit.io\n"
+        "2. Click **Secrets** → paste your service account JSON (as TOML)\n"
+        "3. Click Save and the app will reload\n\n"
+        "**For local development:**\n"
+        "1. Create `.streamlit/secrets.toml` (copy from `.streamlit/secrets.toml.example`)\n"
+        "2. Download service account JSON from Google Cloud Console\n"
+        "3. Paste the contents into the `[gcp_service_account]` section\n"
+        "4. Restart Streamlit (Ctrl+C, then `streamlit run app.py`)"
+    )
 
 
 def open_workbook(client: gspread.Client, config: AppConfig) -> gspread.Spreadsheet:
@@ -103,6 +171,31 @@ def _coerce_bool(value: Any) -> bool:
     if isinstance(value, bool):
         return value
     return str(value).strip().lower() in {"true", "yes", "y", "1"}
+
+
+@st.cache_data(ttl=300)
+def geocode_venue(venue_name: str) -> tuple[float, float] | None:
+    """Convert venue name to (lat, lon) using Nominatim (free geocoder)."""
+    if not venue_name or not venue_name.strip():
+        return None
+    try:
+        geolocator = Nominatim(user_agent="nomadbase_app")
+        location = geolocator.geocode(venue_name, timeout=5)
+        if location:
+            return (location.latitude, location.longitude)
+    except Exception:
+        pass
+    return None
+
+
+def get_marker_color(wifi_rating: int) -> str:
+    """Return folium marker color based on WiFi rating."""
+    if wifi_rating >= 4:
+        return "green"
+    elif wifi_rating == 3:
+        return "orange"
+    else:
+        return "red"
 
 
 def load_locations(worksheet: gspread.Worksheet) -> pd.DataFrame:
@@ -183,50 +276,141 @@ def render_metrics(df: pd.DataFrame) -> None:
 
 
 def render_setup_panel(config: AppConfig, worksheet_status: str) -> None:
-    st.subheader("Setup")
+    st.subheader("⚙️ Admin Setup")
+    
+    st.markdown("### Quick Setup Steps")
     st.markdown(
         """
-        1. Create a Google Sheet and share it with your Service Account email.
-        2. Add `gcp_service_account` to Streamlit secrets or `service_account.json` locally.
-        3. Set `NOMADBASE_SPREADSHEET_ID` or `NOMADBASE_SPREADSHEET_NAME`.
-        4. Keep headers aligned with the schema shown below.
+        1. **Create a Google Sheet** named `NomadBase_Data` (or your preferred name)
+        2. **Set headers** in row 1: Name, WiFi Rating, Noise Rating, Coffee Rating, Laptop Friendly, Outlets, Last Updated
+        3. **Create a Google Cloud Service Account** and download JSON key
+        4. **Share the Sheet** with the service account email (Editor access)
+        5. **Add credentials** to Streamlit secrets (see below for your platform)
         """
     )
 
-    st.info(
-        f"Active config => spreadsheet_id: {config.spreadsheet_id or 'unset'} | "
-        f"spreadsheet_name: {config.spreadsheet_name or 'unset'} | worksheet: {config.worksheet_name}"
-    )
-    st.success(f"Worksheet state: {worksheet_status}")
+    if "connected" in worksheet_status:
+        st.success(f"✅ Worksheet connection active: {worksheet_status}")
+    else:
+        st.error(f"❌ Worksheet connection blocked: {worksheet_status}")
+        
+        st.markdown("### Troubleshooting")
+        with st.expander("Fix 'Invalid PEM file' error", expanded=True):
+            st.markdown("""
+            **Error:** `InvalidData(InvalidByte(0, 46))` or similar PEM parsing error
+            
+            **Cause:** Service account JSON is corrupted or manually edited.
+            
+            **Fix:**
+            1. Go to [Google Cloud Console](https://console.cloud.google.com/)
+            2. IAM & Admin → Service Accounts → select your account
+            3. Keys → **delete old keys**
+            4. Create a **new JSON key** (download directly, don't edit)
+            5. Paste the fresh JSON into your secrets
+            6. Restart the app
+            """)
+        
+        with st.expander("For Streamlit Cloud"):
+            st.markdown("""
+            1. Go to [app.streamlit.io](https://app.streamlit.io) → your app
+            2. Settings (gear icon) → **Secrets**
+            3. Paste your service account JSON as TOML
+            4. Click **Save** → app auto-reloads
+            """)
+        
+        with st.expander("For Local Development"):
+            st.markdown("""
+            1. Create `.streamlit/secrets.toml` (copy from `.streamlit/secrets.toml.example`)
+            2. Download JSON key from Google Cloud Console
+            3. Paste contents into the `[gcp_service_account]` section
+            4. Save the file
+            5. Restart: `Ctrl+C` then `streamlit run app.py`
+            """)
+
+    st.markdown("### Active Configuration")
+    config_dict = {
+        "Spreadsheet ID": config.spreadsheet_id or "(not set)",
+        "Spreadsheet Name": config.spreadsheet_name or "(not set)",
+        "Worksheet Name": config.worksheet_name or "(not set)",
+    }
+    st.dataframe(pd.DataFrame(list(config_dict.items()), columns=["Setting", "Value"]), 
+                 use_container_width=True, hide_index=True)
+
+    st.markdown("### Schema (Headers)")
     st.dataframe(pd.DataFrame({"Header": HEADER_COLUMNS}), use_container_width=True, hide_index=True)
 
 
-def render_explore_tab(df: pd.DataFrame) -> None:
-    st.subheader("Find a work-friendly spot")
+def render_explore_with_map(df: pd.DataFrame) -> None:
+    """Render Explore tab with interactive map and filters."""
+    st.subheader("🗺️ Find work-friendly spots")
 
     if df.empty:
-        st.info("No logs yet. Use the Log tab to add the first NomadBase entry.")
+        st.info("No spots logged yet. Use the **Log** tab to add your first favorite café or coworking space!")
         return
 
-    search_col, wifi_col, noise_col, coffee_col = st.columns([2, 1, 1, 1])
-    with search_col:
-        search_text = st.text_input("Search by venue name", placeholder="Might search a café, coworking space, or neighborhood")
-    with wifi_col:
-        min_wifi = st.slider("Min WiFi", 1, 5, 1)
-    with noise_col:
-        min_noise = st.slider("Min quietness", 1, 5, 1)
-    with coffee_col:
-        min_coffee = st.slider("Min coffee", 1, 5, 1)
+    # Filters
+    st.markdown("### Filter spots")
+    filter_cols = st.columns([2, 1, 1, 1])
+    with filter_cols[0]:
+        search_text = st.text_input("Search by name", placeholder="e.g., Starbucks, WeWork, Local Café")
+    with filter_cols[1]:
+        min_wifi = st.slider("Min WiFi", 1, 5, 1, key="explore_wifi")
+    with filter_cols[2]:
+        min_noise = st.slider("Min Quiet", 1, 5, 1, key="explore_noise")
+    with filter_cols[3]:
+        min_coffee = st.slider("Min Coffee", 1, 5, 1, key="explore_coffee")
 
-    flag_cols = st.columns(2)
-    with flag_cols[0]:
+    feature_cols = st.columns(2)
+    with feature_cols[0]:
         laptop_only = st.checkbox("Laptop-friendly only")
-    with flag_cols[1]:
+    with feature_cols[1]:
         outlets_only = st.checkbox("Outlets required")
 
+    # Apply filters
     filtered = apply_filters(df, search_text, min_wifi, min_noise, min_coffee, laptop_only, outlets_only)
 
-    st.caption(f"Filtered results: {len(filtered)} / {len(df)}")
+    if filtered.empty:
+        st.info(f"No spots match your filters. Try adjusting the criteria.")
+        return
+
+    # Create and render map
+    st.markdown(f"### Map ({len(filtered)} spots)")
+    
+    # Calculate map center (using average of all spots, or default to SF)
+    if len(filtered) > 0:
+        # For now, use a default center since we don't have geocoded lat/lon yet
+        center_lat = 37.7749
+        center_lon = -122.4194
+    else:
+        center_lat, center_lon = 37.7749, -122.4194
+
+    m = folium.Map(
+        location=[center_lat, center_lon],
+        zoom_start=13,
+        tiles="OpenStreetMap"
+    )
+
+    # Add markers for filtered spots
+    for idx, row in filtered.iterrows():
+        color = get_marker_color(row["WiFi Rating"])
+        popup_text = f"""
+        <b>{row['Name']}</b><br>
+        WiFi: {row['WiFi Rating']}/5 | Coffee: {row['Coffee Rating']}/5 | Quiet: {row['Noise Rating']}/5<br>
+        Laptop-friendly: {yes_no(row['Laptop Friendly'])}<br>
+        Outlets: {yes_no(row['Outlets'])}<br>
+        <small>{row['Last Updated']}</small>
+        """
+        folium.Marker(
+            location=[center_lat + (idx * 0.001), center_lon + (idx * 0.001)],  # Temp: offset markers for now
+            popup=folium.Popup(popup_text, max_width=250),
+            icon=folium.Icon(color=color, icon="coffee", prefix="fa"),
+            tooltip=row["Name"]
+        ).add_to(m)
+
+    st_folium(m, width=1200, height=500)
+
+    # Display table view
+    st.markdown(f"### Details ({len(filtered)} results)")
     display_df = filtered.copy()
     display_df["Laptop Friendly"] = display_df["Laptop Friendly"].apply(yes_no)
     display_df["Outlets"] = display_df["Outlets"].apply(yes_no)
@@ -247,25 +431,36 @@ def render_explore_tab(df: pd.DataFrame) -> None:
 
 
 def render_log_tab(worksheet: gspread.Worksheet, refresh_key: str) -> None:
-    st.subheader("Log a café or coworking space")
-    with st.form("nomadbase_log_form", clear_on_submit=True):
-        name = st.text_input("Venue name", placeholder="e.g. Blue Bottle, WeWork, local café")
+    st.subheader("📝 Log a new spot")
+    st.markdown("Help the community by logging a café or coworking space you love!")
 
+    with st.form("nomadbase_log_form", clear_on_submit=True):
+        name = st.text_input(
+            "Venue name",
+            placeholder="e.g., Blue Bottle Coffee, WeWork San Francisco, Local Café"
+        )
+        address = st.text_input(
+            "Address (optional, helps with location)",
+            placeholder="e.g., 123 Main St, San Francisco, CA"
+        )
+
+        st.markdown("### Ratings")
         rating_cols = st.columns(3)
         with rating_cols[0]:
-            wifi_rating = st.slider("WiFi speed rating", 1, 5, 4)
+            wifi_rating = st.slider("WiFi speed", 1, 5, 4, help="1=slow, 5=blazing fast")
         with rating_cols[1]:
-            noise_rating = st.slider("Noise level rating", 1, 5, 3, help="Use 1 for loud, 5 for quiet")
+            noise_rating = st.slider("Noise level", 1, 5, 3, help="1=loud, 5=silent")
         with rating_cols[2]:
-            coffee_rating = st.slider("Coffee quality rating", 1, 5, 4)
+            coffee_rating = st.slider("Coffee quality", 1, 5, 4, help="1=undrinkable, 5=amazing")
 
+        st.markdown("### Amenities")
         feature_cols = st.columns(2)
         with feature_cols[0]:
-            laptop_friendly = st.checkbox("Laptop-friendly")
+            laptop_friendly = st.checkbox("Laptop-friendly (desk space, outlets)")
         with feature_cols[1]:
-            outlets = st.checkbox("Outlets available")
+            outlets = st.checkbox("Power outlets available")
 
-        submitted = st.form_submit_button("Save log")
+        submitted = st.form_submit_button("📍 Save spot", use_container_width=True)
 
     if submitted:
         if not name.strip():
@@ -281,15 +476,22 @@ def render_log_tab(worksheet: gspread.Worksheet, refresh_key: str) -> None:
             "Outlets": bool(outlets),
             "Last Updated": dt.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC"),
         }
+        
         append_location(worksheet, payload)
         st.session_state[refresh_key] = st.session_state.get(refresh_key, 0) + 1
-        st.success(f"Saved {payload['Name']} to Google Sheets.")
+        st.balloons()
+        st.success(f"🎉 Successfully logged **{payload['Name']}**! Thanks for sharing!")
+
+
+def is_admin_mode() -> bool:
+    """Check if admin mode is enabled via URL param."""
+    return st.query_params.get("admin") == "true"
 
 
 def app() -> None:
     config = load_config()
-    st.title("NomadBase")
-    st.markdown("Remote Work Hub for logging and finding café + coworking spots with free tooling.")
+    st.title("☕ NomadBase")
+    st.markdown("**Find and log your favorite work-friendly cafés and coworking spaces.**")
 
     refresh_key = "nomadbase_refresh_counter"
     st.session_state.setdefault(refresh_key, 0)
@@ -303,25 +505,36 @@ def app() -> None:
         worksheet = None
         df = pd.DataFrame(columns=HEADER_COLUMNS + ["Nomad Score"])
         worksheet_status = f"blocked: {exc}"
-        st.warning(
-            "Google Sheets is not configured yet. Add Streamlit secrets or `service_account.json`, then share the target sheet with the service account."
+        st.error(
+            "⚠️ **Google Sheets not configured.** "
+            "Please contact the app administrator to set up credentials."
         )
 
     render_metrics(df)
 
-    tab_explore, tab_log, tab_setup = st.tabs(["Explore", "Log", "Setup"])
+    # Determine which tabs to show
+    admin_mode = is_admin_mode()
+    worksheet_error = "blocked" in worksheet_status
+
+    if admin_mode or worksheet_error:
+        tab_explore, tab_log, tab_setup = st.tabs(["Explore", "Log", "Setup"])
+        show_setup = True
+    else:
+        tab_explore, tab_log = st.tabs(["Explore", "Log"])
+        show_setup = False
 
     with tab_explore:
-        render_explore_tab(df)
+        render_explore_with_map(df)
 
     with tab_log:
         if worksheet is None:
-            st.error("Logging is disabled until Google Sheets connection is ready.")
+            st.error("Logging is disabled until Google Sheets is configured.")
         else:
             render_log_tab(worksheet, refresh_key)
 
-    with tab_setup:
-        render_setup_panel(config, worksheet_status)
+    if show_setup:
+        with tab_setup:
+            render_setup_panel(config, worksheet_status)
 
 
 if __name__ == "__main__":
