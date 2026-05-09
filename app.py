@@ -36,6 +36,8 @@ HEADER_COLUMNS = [
 SHEET_DEFAULT_NAME = "NomadBase_Data"
 WORKSHEET_DEFAULT_NAME = "Locations"
 MAP_DEFAULT_CENTER = (37.7749, -122.4194)
+NOMINATIM_DOMAIN = "nominatim.openstreetmap.org"
+NOMINATIM_USER_AGENT = "nomadbase_app"
 
 
 @dataclass(frozen=True)
@@ -211,7 +213,11 @@ def _unique_queries(*queries: str) -> list[str]:
 
 @st.cache_resource
 def get_geocoder() -> RateLimiter:
-    geolocator = Nominatim(user_agent="nomadbase_app", timeout=10)
+    geolocator = Nominatim(
+        user_agent=NOMINATIM_USER_AGENT,
+        timeout=10,
+        domain=NOMINATIM_DOMAIN,
+    )
     return RateLimiter(
         geolocator.geocode,
         min_delay_seconds=1.1,
