@@ -198,6 +198,29 @@ def get_marker_color(wifi_rating: int) -> str:
         return "red"
 
 
+def render_coffee_rating(label: str, default_value: int = 3, help_text: str = "", key: str = None) -> int:
+    """Render a coffee mug emoji rating selector (1-5 mugs)."""
+    # Create emoji display for each level
+    options = {
+        1: "☕",
+        2: "☕☕",
+        3: "☕☕☕",
+        4: "☕☕☕☕",
+        5: "☕☕☕☕☕",
+    }
+    
+    selected = st.select_slider(
+        label,
+        options=list(options.keys()),
+        value=default_value,
+        format_func=lambda x: options[x],
+        key=key,
+        help=help_text,
+    )
+    
+    return selected
+
+
 def load_locations(worksheet: gspread.Worksheet) -> pd.DataFrame:
     records = worksheet.get_all_records()
     if not records:
@@ -257,6 +280,14 @@ def yes_no(value: bool) -> str:
     return "Yes" if value else "No"
 
 
+def render_rating_mugs(rating: float) -> str:
+    """Convert numeric rating (1-5) to coffee mug emoji display."""
+    if rating == 0:
+        return "—"
+    mugs = int(round(rating))
+    return "☕" * mugs
+
+
 def render_metrics(df: pd.DataFrame) -> None:
     total_locations = len(df)
     avg_wifi = round(df["WiFi Rating"].mean(), 1) if total_locations else 0.0
@@ -266,13 +297,13 @@ def render_metrics(df: pd.DataFrame) -> None:
 
     metric_cols = st.columns(4)
     metric_cols[0].metric("Spots logged", total_locations)
-    metric_cols[1].metric("Avg WiFi", avg_wifi)
-    metric_cols[2].metric("Avg quietness", avg_noise)
-    metric_cols[3].metric("Laptop-friendly share", f"{int(laptop_share)}%")
+    metric_cols[1].metric("Avg WiFi", render_rating_mugs(avg_wifi), help_text="Coffee mug rating")
+    metric_cols[2].metric("Avg quietness", render_rating_mugs(avg_noise), help_text="Coffee mug rating")
+    metric_cols[3].metric("Laptop-friendly", f"{int(laptop_share)}%")
 
     sub_cols = st.columns(2)
-    sub_cols[0].caption(f"Coffee quality avg: {avg_coffee}")
-    sub_cols[1].caption("Noise rating uses 1 = loud, 5 = quiet.")
+    sub_cols[0].caption(f"Coffee quality: {render_rating_mugs(avg_coffee)}")
+    sub_cols[1].caption("More mugs = better! ☕☕☕☕☕")
 
 
 def render_setup_panel(config: AppConfig, worksheet_status: str) -> None:
@@ -349,16 +380,28 @@ def render_explore_with_map(df: pd.DataFrame) -> None:
         return
 
     # Filters
-    st.markdown("### Filter spots")
+    st.markdown("### Filter spots (☕ = minimum quality)")
     filter_cols = st.columns([2, 1, 1, 1])
     with filter_cols[0]:
         search_text = st.text_input("Search by name", placeholder="e.g., Starbucks, WeWork, Local Café")
     with filter_cols[1]:
-        min_wifi = st.slider("Min WiFi", 1, 5, 1, key="explore_wifi")
+        min_wifi = render_coffee_rating(
+            "Min WiFi",
+            default_value=1,
+            key="explore_wifi"
+        )
     with filter_cols[2]:
-        min_noise = st.slider("Min Quiet", 1, 5, 1, key="explore_noise")
+        min_noise = render_coffee_rating(
+            "Min Quiet",
+            default_value=1,
+            key="explore_noise"
+        )
     with filter_cols[3]:
-        min_coffee = st.slider("Min Coffee", 1, 5, 1, key="explore_coffee")
+        min_coffee = render_coffee_rating(
+            "Min Coffee",
+            default_value=1,
+            key="explore_coffee"
+        )
 
     feature_cols = st.columns(2)
     with feature_cols[0]:
@@ -393,9 +436,12 @@ def render_explore_with_map(df: pd.DataFrame) -> None:
     # Add markers for filtered spots
     for idx, row in filtered.iterrows():
         color = get_marker_color(row["WiFi Rating"])
+        wifi_mugs = render_rating_mugs(row["WiFi Rating"])
+        coffee_mugs = render_rating_mugs(row["Coffee Rating"])
+        quiet_mugs = render_rating_mugs(row["Noise Rating"])
         popup_text = f"""
         <b>{row['Name']}</b><br>
-        WiFi: {row['WiFi Rating']}/5 | Coffee: {row['Coffee Rating']}/5 | Quiet: {row['Noise Rating']}/5<br>
+        WiFi: {wifi_mugs} | Coffee: {coffee_mugs} | Quiet: {quiet_mugs}<br>
         Laptop-friendly: {yes_no(row['Laptop Friendly'])}<br>
         Outlets: {yes_no(row['Outlets'])}<br>
         <small>{row['Last Updated']}</small>
@@ -414,6 +460,9 @@ def render_explore_with_map(df: pd.DataFrame) -> None:
     display_df = filtered.copy()
     display_df["Laptop Friendly"] = display_df["Laptop Friendly"].apply(yes_no)
     display_df["Outlets"] = display_df["Outlets"].apply(yes_no)
+    display_df["WiFi Rating"] = display_df["WiFi Rating"].apply(render_rating_mugs)
+    display_df["Noise Rating"] = display_df["Noise Rating"].apply(render_rating_mugs)
+    display_df["Coffee Rating"] = display_df["Coffee Rating"].apply(render_rating_mugs)
     display_df = display_df[
         [
             "Name",
@@ -444,14 +493,29 @@ def render_log_tab(worksheet: gspread.Worksheet, refresh_key: str) -> None:
             placeholder="e.g., 123 Main St, San Francisco, CA"
         )
 
-        st.markdown("### Ratings")
+        st.markdown("### Ratings (☕ = better)")
         rating_cols = st.columns(3)
         with rating_cols[0]:
-            wifi_rating = st.slider("WiFi speed", 1, 5, 4, help="1=slow, 5=blazing fast")
+            wifi_rating = render_coffee_rating(
+                "WiFi speed",
+                default_value=4,
+                help_text="☕=slow, ☕☕☕☕☕=blazing fast",
+                key="log_wifi"
+            )
         with rating_cols[1]:
-            noise_rating = st.slider("Noise level", 1, 5, 3, help="1=loud, 5=silent")
+            noise_rating = render_coffee_rating(
+                "Noise level",
+                default_value=3,
+                help_text="☕=loud, ☕☕☕☕☕=silent",
+                key="log_noise"
+            )
         with rating_cols[2]:
-            coffee_rating = st.slider("Coffee quality", 1, 5, 4, help="1=undrinkable, 5=amazing")
+            coffee_rating = render_coffee_rating(
+                "Coffee quality",
+                default_value=4,
+                help_text="☕=undrinkable, ☕☕☕☕☕=amazing",
+                key="log_coffee"
+            )
 
         st.markdown("### Amenities")
         feature_cols = st.columns(2)
