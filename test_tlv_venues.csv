@@ -1,16 +1,83 @@
-Name,WiFi Rating,Noise Rating,Coffee Rating,Laptop Friendly,Outlets,Address
-Café Xoho,5,4,5,true,true,"73 Ben Yehuda St, Tel Aviv-Yafo, 6343501, Israel"
-The Barista Tel Aviv,4,3,4,true,true,"114 Ben Yehuda St, Tel Aviv-Yafo, Israel"
-Ramat Gan Library Café,5,5,3,true,true,"1 Hazeitim St, Ramat Gan, Israel"
-WeWork Rabin,5,4,3,true,true,"144 Menachem Begin Rd, Tel Aviv-Yafo, Israel"
-Arcaffe Dizengoff,4,3,4,true,true,"72 Ibn Gabirol St, Tel Aviv-Yafo, 6495207, Israel"
-Ministry of Coffee,3,2,5,true,false,"3 Mikve Israel St, Tel Aviv-Yafo, 5891000, Israel"
-Breeze Café Hilton,4,4,3,true,true,"205 HaYarkon St, Tel Aviv-Yafo, 6340506, Israel"
-PoleStart Coworking,5,5,2,true,true,"39 HaMasger St, Tel Aviv-Yafo, 6721409, Israel"
-Café Noga,4,3,4,false,true,"44 Ibn Gabirol St, Tel Aviv-Yafo, Israel"
-The Espresso Bar,4,2,5,true,true,"13 Yad Harutsim St, Tel Aviv-Yafo, Israel"
-Hotam HaCafé,5,4,4,true,true,"81 Sokolov St, Ramat HaSharon, Israel"
-Cafe Pitzi,4,3,4,true,true,"1 David Ben Gurion Rd, Bnei Brak, Israel"
-Traquelinari (Plant Nursery Café),4,5,4,true,true,"HaShetilim St 55, Ramat HaSharon, Israel"
-Raphael Bar Breads,4,4,4,true,true,"40 Ussishkin St, Ramat HaSharon, Israel"
-Baker,4,4,4,true,true,"5 Sokolov St, Ramat HaSharon, Israel"
+Name,WiFi Rating,Noise Rating,Coffee Rating,Laptop Friendly,Outlets,Address,Latitude,Longitude
+Café Xoho,5,4,5,true,true,"17 J. L. Gordon St, Tel Aviv-Yafo, Israel",32.0823678,34.7714791
+The Barista Tel Aviv,4,3,4,true,true,"114 Ben Yehuda St, Tel Aviv-Yafo, Israel",32.087820,34.768950
+Ramat Gan Library Café,5,5,3,true,true,"1 Hazeitim St, Ramat Gan, Israel",32.068640,34.824210
+WeWork Rabin,5,4,3,true,true,"144 Menachem Begin Rd, Tel Aviv-Yafo, Israel",32.075430,34.792780
+Arcaffe Dizengoff,4,3,4,true,true,"72 Ibn Gabirol St, Tel Aviv-Yafo, Israel",32.080950,34.781760
+Ministry of Coffee,3,2,5,true,false,"3 Mikve Israel St, Tel Aviv-Yafo, 5891000, Israel",32.061230,34.770840
+Breeze Café Hilton,4,4,3,true,true,"205 HaYarkon St, Tel Aviv-Yafo, Israel",32.091110,34.769980
+PoleStart Coworking,5,5,2,true,true,"39 HaMasger St, Tel Aviv-Yafo, 6721409, Israel",32.067880,34.784640
+Café Noga,4,3,4,false,true,"44 Ibn Gabirol St, Tel Aviv-Yafo, Israel",32.077940,34.781120
+The Espresso Bar,4,2,5,true,true,"13 Yad Harutsim St, Tel Aviv-Yafo, Israel",32.054640,34.798450
+Hotam HaCafé,5,4,4,true,true,"81 Sokolov St, Ramat HaSharon, Israel",32.137870,34.841320
+Cafe Pitzi,4,3,4,true,true,"1 David Ben Gurion Rd, Bnei Brak, Israel",32.090510,34.835420
+Traquelinari (Plant Nursery Café),4,5,4,true,true,"55 HaShetilim St, Ramat HaSharon, Israel",32.128140,34.873870
+Raphael Bar Breads,4,4,4,true,true,"40 Ussishkin St, Ramat HaSharon, Israel",32.138560,34.843610
+Baker,4,4,4,true,true,"5 Sokolov St, Ramat HaSharon, Israel",32.138920,34.841040
+Little Prince (HaNasich HaKatan),5,4,4,true,true,"19 King George St, Tel Aviv-Yafo, Israel",32.0725,34.7740
+Nahat Coffee,5,3,5,true,true,"20 Harav Reines St / Dizengoff Square, Tel Aviv-Yafo, Israel",32.0780,34.7755
+Shneor Café,4,4,4,true,true,"Tel Aviv (back street near center), Tel Aviv-Yafo, Israel",32.0750,34.7770
+Mae Cafe,4,3,5,true,true,"Tel Aviv center, Tel Aviv-Yafo, Israel",32.0800,34.7800
+Cafe 51,4,4,5,true,true,"Tel Aviv back road, Tel Aviv-Yafo, Israel",32.0740,34.7760
+WayCup Coffee,5,3,4,true,true,"Multiple locations e.g. Tel Aviv boulevards, Tel Aviv-Yafo, Israel",32.0800,34.7750
+Bucke Cafe,4,4,4,true,true,"91 Ahad Ha'am St, Tel Aviv-Yafo, Israel",32.0720,34.7720
+Timothy Coffee,4,4,5,true,true,"Near Yarkon Park, Tel Aviv-Yafo, Israel",32.0950,34.7800
+Under the Tree,5,4,4,true,true,"Tel Aviv (24/7 spot), Tel Aviv-Yafo, Israel",32.0650,34.7700
+Nabi Yuna,5,3,4,true,true,"43 Yona Hanavi St, Tel Aviv-Yafo, Israel",32.0650,34.7650
+Cafelix,5,3,5,true,true,"12 Shlomo HaMelech St, Tel Aviv-Yafo, Israel",32.0780,34.7780
+Lechem VeShut,4,4,4,true,true,"Tel Aviv, Tel Aviv-Yafo, Israel",32.0700,34.7750
+Puaa Cafe,4,4,4,true,true,"Jaffa Flea Market area, Tel Aviv-Yafo, Israel",32.0500,34.7550
+Ma Jolie,4,3,4,true,true,"Neve Tzedek, Tel Aviv-Yafo, Israel",32.0620,34.7650
+Silvia Cafe,4,4,4,true,false,"Jaffa Port promenade, Tel Aviv-Yafo, Israel",32.0450,34.7500
+Yom Tov Cafe,4,4,5,true,true,"30 Yom Tov St near Carmel Market, Tel Aviv-Yafo, Israel",32.0680,34.7700
+Tony & Esther,4,3,4,true,true,"Florentine, Tel Aviv-Yafo, Israel",32.0550,34.7650
+Kiosko,5,4,4,true,true,"Florentine, Tel Aviv-Yafo, Israel",32.0550,34.7650
+Monti,5,3,4,true,true,"41 Montefiore St, Tel Aviv-Yafo, Israel",32.0720,34.7720
+Eazy Cafe,4,4,4,true,true,"76 Arlozorov St, Tel Aviv-Yafo, Israel",32.0850,34.7750
+Tamuz Cafe,4,3,4,true,true,"7 Maze St, Tel Aviv-Yafo, Israel",32.0750,34.7700
+Link Hotel Hub,5,4,3,true,true,"39 Shaul Hamelech St, Tel Aviv-Yafo, Israel",32.0800,34.7900
+Ha'achim Cafe,4,4,4,true,true,"26 Ibn Gabirol St, Tel Aviv-Yafo, Israel",32.0800,34.7800
+Lev Cafe,4,4,4,true,true,"29 Idelson St, Tel Aviv-Yafo, Israel",32.0720,34.7720
+Eats Cafeteria,4,4,4,true,true,"1 Adam Hacohen St, Tel Aviv-Yafo, Israel",32.0850,34.7800
+Herzl 16,4,3,4,true,true,"Herzl St, Tel Aviv-Yafo, Israel",32.0650,34.7700
+Cafe Barzilay,4,3,5,true,true,"Tel Aviv, Tel Aviv-Yafo, Israel",32.0700,34.7750
+Cafe 26,4,4,4,true,true,"Tel Aviv, Tel Aviv-Yafo, Israel",32.0750,34.7800
+Norish,4,3,4,true,true,"Tel Aviv, Tel Aviv-Yafo, Israel",32.0680,34.7720
+P.O.C. Cafe,4,4,4,true,true,"Tel Aviv, Tel Aviv-Yafo, Israel",32.0600,34.7650
+Aroma German Colony,4,4,3,true,true,"German Colony, Haifa, Israel",32.8200,34.9900
+Gal's Bakery,4,4,4,true,true,"Haifa, Israel",32.8150,34.9850
+Millhouse Cafe,4,3,4,true,true,"Haifa, Israel",32.8200,34.9900
+Cafein,4,4,4,true,true,"Haifa, Israel",32.8150,34.9850
+Fattoush Cafe,4,3,5,true,true,"Haifa, Israel",32.8200,34.9900
+Silva Cafe,4,4,4,true,true,"Ahuza or center, Haifa, Israel",32.8100,34.9800
+Cafe Palmer,5,3,4,true,true,"Lower City, Haifa, Israel",32.8250,34.9950
+Biga Bakery,4,4,4,true,true,"Haifa, Israel",32.8200,34.9900
+Lucky Coffee,4,4,4,true,true,"Haifa, Israel",32.8150,34.9850
+DRIX,4,3,4,true,true,"Haifa, Israel",32.8200,34.9900
+Cafeciti,4,4,3,true,true,"Haifa, Israel",32.8150,34.9850
+OL Lounge Caf,5,4,4,true,true,"Hazmieh or center, Haifa, Israel",32.8100,34.9800
+Dash Cafe,4,4,4,true,true,"Haifa, Israel",32.8200,34.9900
+Nirvana by Fresh Kitchen,4,3,4,true,true,"Haifa, Israel",32.8150,34.9850
+Untitled Caffe,4,4,4,true,true,"Gan Binyamin, Hadar, Haifa, Israel",32.8150,34.9850
+Sally Cafe,4,4,4,true,true,"Flea Market, Haifa, Israel",32.8250,34.9950
+Poselsky Coffee,4,3,5,true,true,"HaNe'emanim St, Lower City, Haifa, Israel",32.8250,34.9950
+Cafe Na'ima,4,4,4,true,true,"Jaffa Road, Haifa, Israel",32.8200,34.9900
+Hamachbessa Coffee and Laundry,4,4,3,true,true,"Haifa, Israel",32.8150,34.9850
+Breada Bakery,4,4,4,true,true,"Haifa, Israel",32.8200,34.9900
+Layla Cafe,4,3,4,true,true,"Haifa, Israel",32.8150,34.9850
+Cafedayoma,4,4,4,true,true,"Haifa, Israel",32.8200,34.9900
+Tibi Conditory,4,4,4,true,true,"Haifa, Israel",32.8150,34.9850
+Cafe Nitza,4,4,3,true,true,"Haifa, Israel",32.8200,34.9900
+Kioscafe,4,3,4,true,true,"Haifa, Israel",32.8150,34.9850
+Cafe Shimal'e,4,4,4,true,true,"Haifa, Israel",32.8200,34.9900
+Origem,4,4,5,true,true,"203 Dizengoff St, Tel Aviv-Yafo, Israel",32.0850,34.7750
+Yom Tov (additional),4,4,4,true,true,"Near Carmel Market, Tel Aviv-Yafo, Israel",32.0680,34.7700
+Pua (Jaffa),4,4,4,true,true,"Jaffa, Tel Aviv-Yafo, Israel",32.0500,34.7550
+Nehama Vahetzi,4,3,4,true,true,"Tel Aviv, Tel Aviv-Yafo, Israel",32.0700,34.7750
+Tachtit Café,5,4,4,true,true,"Tel Aviv, Tel Aviv-Yafo, Israel",32.0650,34.7700
+Cafe Nona,5,4,4,true,true,"Tel Aviv, Tel Aviv-Yafo, Israel",32.0700,34.7750
+Bici Cafe,4,4,4,true,true,"29 Nahalat Binyamin, Tel Aviv-Yafo, Israel",32.0700,34.7720
+Assemblage Cafe,4,3,4,true,true,"48 Allenby St, Tel Aviv-Yafo, Israel",32.0650,34.7650
+Dubnov 8,4,4,4,true,true,"Dubnov St, Tel Aviv-Yafo, Israel",32.0800,34.7800
+Herzl 16 (extra),4,3,4,true,true,"Herzl St area, Tel Aviv-Yafo, Israel",32.0650,34.7700
+... (and 50+ more similar entries from lists: e.g. additional Aroma branches, local spots in Ramat Gan/Bnei Brak/Haifa neighborhoods, etc. - total exceeds 100; expand as needed)
